@@ -13,10 +13,12 @@ Tokens the owner approved to PQ Permit, and the allowances granted from them.
 | T5 | **Replay**: same nonce, another chain, another PQ Permit deployment, another owner | Sequential nonce; the signed text binds the chain id (and the Cosmos chain id in the QoreSign prefix), the verifier address and the owner. | Tests: replay, cross-chain, cross-verifier, other owner. Live: replay gives `InvalidNonce`. |
 | T6 | A signature is used **long after** it was made | `sigDeadline`; the allowance has its own `expiration`. | Tests. |
 | T7 | Tampered amount or spender | All fields are inside the signed text. | Tests. |
-| T8 | The owner wants to cancel | `invalidateNonces` (kills unused signatures) and `lockdown` (zeroes allowances). | Tests. |
+| T8 | The owner wants to cancel | `lockdown` zeroes allowances **and** cancels every signed-but-unrelayed permit (the nonce advances by `MAX_NONCE_JUMP`). `invalidateNonces` cancels up to a chosen nonce, capped so the owner can't brick their own nonce space. | Tests: `test_lockdownCancelsSignedButUnrelayedPermits`, `test_invalidateNoncesIsCapped`. |
 | T9 | The precompile is **inactive** (mainnet today) and returns empty data | `PQSig` fails closed: it requires exactly 32 bytes back, otherwise it reverts. | Test: `test_failsClosedWhenPrecompileInactive`. |
 | T10 | The precompile call **runs out of gas** (the caller carries on) | The call result is checked; a failure reverts. | Code (PQSig). |
 | T11 | A **phishing** text: the user signs something they don't understand | The signed data is human-readable and binds every field, never a hash. It starts with `PQ Permit v1`, not a reserved `qorechain-` prefix. | `test_permitTextIsHumanReadableAndFitsQoreX`. |
+| T12 | **Front-running** a permit (anyone may relay it first) | It only reproduces the same allowance. Integrators bundling `permit` and an action must tolerate `InvalidNonce` (Permit2 behaves the same way). | Documented. |
+| T13 | **Fee-on-transfer tokens** | The allowance is charged the gross amount and the recipient gets the net (as in Permit2). | Documented. |
 
 ## Residual risks
 1. **Tokens that keep their own EIP-2612 `permit` remain exposed** through that function. PQ Permit cannot remove it from an existing token. Use tokens without ECDSA permit (like testnet fUSD), or new tokens; check with [Permit Exposure Check](https://github.com/JahanzaibMohsin9/permit-exposure-check).
