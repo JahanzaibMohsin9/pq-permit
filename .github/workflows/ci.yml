@@ -1,0 +1,16 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: lib/pqc-forge
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge test -vv
