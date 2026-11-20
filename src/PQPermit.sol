@@ -57,11 +57,19 @@ contract PQPermit {
     error AllowanceExpired(uint48 expiration);
     error InsufficientAllowance(uint160 available);
     error NonceNotIncreasing();
+    error InvalidExpiration(uint48 expiration);
+    error NonceJumpTooLarge();
+
+    /// Max nonce advance per invalidation, and what `lockdown` advances by (cancels every signed, unrelayed permit).
+    uint256 public constant MAX_NONCE_JUMP = type(uint16).max;
 
     /// @notice Grant `p.spender` an allowance over `owner`'s `p.token`, authorised by an ML-DSA-87 signature.
     ///         Callable by anyone (relayer, spender, owner).
+    /// @dev Like Permit2, anyone may relay a permit first; integrators bundling `permit` + an action should
+    ///      tolerate an `InvalidNonce` revert when the allowance is already in place (front-run griefing).
     function permit(address owner, PermitSingle calldata p, bytes calldata signature) external {
         if (block.timestamp > p.sigDeadline) revert SignatureExpired(p.sigDeadline);
+        if (p.expiration < block.timestamp) revert InvalidExpiration(p.expiration);
         uint256 expected = nonces[owner];
         if (p.nonce != expected) revert InvalidNonce(expected, p.nonce);
         if (!PQSig.verifyMessageBy(owner, permitText(owner, p), signature)) revert InvalidSignature();
@@ -86,21 +94,29 @@ contract PQPermit {
 
     /// @notice Direct approval by the owner's own (window-protected) transaction.
     function approve(address token, address spender, uint160 amount, uint48 expiration) external {
+        if (expiration < block.timestamp) revert InvalidExpiration(expiration);
         allowance[msg.sender][token][spender] = Allowance(amount, expiration);
         emit Approval(msg.sender, token, spender, amount, expiration);
     }
 
-    /// @notice Emergency: zero out allowances.
+    /// @notice Emergency stop: zero out allowances AND cancel every signed-but-unrelayed permit
+    ///         (advances the nonce by MAX_NONCE_JUMP, so no pending signature can re-arm an allowance).
     function lockdown(TokenSpender[] calldata pairs) external {
         for (uint256 i; i < pairs.length; ++i) {
             allowance[msg.sender][pairs[i].token][pairs[i].spender].amount = 0;
             emit Lockdown(msg.sender, pairs[i].token, pairs[i].spender);
         }
+        uint256 newNonce = nonces[msg.sender] + MAX_NONCE_JUMP;
+        nonces[msg.sender] = newNonce;
+        emit NonceInvalidation(msg.sender, newNonce);
     }
 
-    /// @notice Cancel every unused signed permit with a nonce below `newNonce`.
+    /// @notice Cancel every unused signed permit with a nonce below `newNonce` (at most MAX_NONCE_JUMP ahead,
+    ///         so an owner can never brick their own nonce space).
     function invalidateNonces(uint256 newNonce) external {
-        if (newNonce <= nonces[msg.sender]) revert NonceNotIncreasing();
+        uint256 current = nonces[msg.sender];
+        if (newNonce <= current) revert NonceNotIncreasing();
+        if (newNonce - current > MAX_NONCE_JUMP) revert NonceJumpTooLarge();
         nonces[msg.sender] = newNonce;
         emit NonceInvalidation(msg.sender, newNonce);
     }

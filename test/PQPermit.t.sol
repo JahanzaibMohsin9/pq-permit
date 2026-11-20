@@ -227,6 +227,79 @@ contract PQPermitTest is Test, PqcForge {
         permit2.transferFrom(alice, recipient, 1, address(token));
     }
 
+    // ---------------------------------------------------------------- review findings (regressions)
+
+    /// PP-2: lockdown must also cancel permits that were signed but not yet relayed.
+    function test_lockdownCancelsSignedButUnrelayedPermits() public {
+        PQPermit.PermitSingle memory p = _permit(100e6, 0);
+        bytes memory sig = _sign(aliceKey, alice, p);
+        PQPermit.TokenSpender[] memory pairs = new PQPermit.TokenSpender[](1);
+        pairs[0] = PQPermit.TokenSpender(address(token), spender);
+        vm.prank(alice);
+        permit2.lockdown(pairs);
+        vm.expectRevert(abi.encodeWithSelector(PQPermit.InvalidNonce.selector, permit2.MAX_NONCE_JUMP(), 0));
+        permit2.permit(alice, p, sig); // cannot re-arm the allowance
+    }
+
+    /// PP-1: an already-expired allowance is refused instead of silently burning the nonce.
+    function test_rejectsPastExpiration() public {
+        PQPermit.PermitSingle memory p = _permit(100e6, 0);
+        p.expiration = uint48(block.timestamp - 1);
+        bytes memory sig = _sign(aliceKey, alice, p);
+        vm.expectRevert(abi.encodeWithSelector(PQPermit.InvalidExpiration.selector, p.expiration));
+        permit2.permit(alice, p, sig);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(PQPermit.InvalidExpiration.selector, uint48(0)));
+        permit2.approve(address(token), spender, 1, 0);
+    }
+
+    /// PP-4: an owner cannot brick their own nonce space.
+    function test_invalidateNoncesIsCapped() public {
+        vm.startPrank(alice);
+        vm.expectRevert(PQPermit.NonceJumpTooLarge.selector);
+        permit2.invalidateNonces(type(uint256).max);
+        permit2.invalidateNonces(permit2.MAX_NONCE_JUMP());
+        vm.expectRevert(PQPermit.NonceNotIncreasing.selector);
+        permit2.invalidateNonces(1);
+        vm.stopPrank();
+    }
+
+    function test_rejectsTamperedTokenExpirationOrDeadline() public {
+        PQPermit.PermitSingle memory p = _permit(100e6, 0);
+        bytes memory sig = _sign(aliceKey, alice, p);
+        PQPermit.PermitSingle memory q = p;
+        q.token = address(0xBEEF);
+        vm.expectRevert(PQPermit.InvalidSignature.selector);
+        permit2.permit(alice, q, sig);
+        q = _permit(100e6, 0);
+        q.expiration = p.expiration + 1;
+        vm.expectRevert(PQPermit.InvalidSignature.selector);
+        permit2.permit(alice, q, sig);
+        q = _permit(100e6, 0);
+        q.sigDeadline = p.sigDeadline + 1;
+        vm.expectRevert(PQPermit.InvalidSignature.selector);
+        permit2.permit(alice, q, sig);
+    }
+
+    function test_rejectsWrongSizeSignature() public {
+        PQPermit.PermitSingle memory p = _permit(100e6, 0);
+        bytes memory sig = _sign(aliceKey, alice, p);
+        assembly { mstore(sig, sub(mload(sig), 1)) }
+        vm.expectRevert(PQPermit.InvalidSignature.selector);
+        permit2.permit(alice, p, sig);
+    }
+
+    function test_newPermitOverwritesPartiallySpentAllowance() public {
+        PQPermit.PermitSingle memory p = _permit(100e6, 0);
+        permit2.permit(alice, p, _sign(aliceKey, alice, p));
+        vm.prank(spender);
+        permit2.transferFrom(alice, recipient, 70e6, address(token));
+        PQPermit.PermitSingle memory p2 = _permit(50e6, 1);
+        permit2.permit(alice, p2, _sign(aliceKey, alice, p2));
+        (uint160 amount,) = permit2.allowance(alice, address(token), spender);
+        assertEq(amount, 50e6);
+    }
+
     // ---------------------------------------------------------------- fuzz (no crypto: direct approvals)
 
     function testFuzz_allowanceAccounting(uint160 granted, uint160 spend1, uint160 spend2) public {
