@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "live": "tsx --env-file=.env pq-permit-live.ts",
-    "verify": "tsx --env-file-if-exists=.env verify-live.ts"
+    "verify": "tsx --env-file-if-exists=.env verify-live.ts",
+    "sign-permit": "tsx --env-file-if-exists=.env sign-permit.ts"
   },
   "keywords": [],
   "author": "",

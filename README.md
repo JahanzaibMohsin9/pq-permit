@@ -7,6 +7,8 @@
 > Build Before Q-Day · Post-Quantum dApp track
 >
 > **Demo video (2:47):** https://youtu.be/FMYFrOpnuGQ
+>
+> **Try it in the browser:** https://jahanzaibmohsin9.github.io/pq-permit/ (live proof on testnet, account check, compose and check a permit)
 
 ## The hole
 QoreChain admits an EVM transaction only from an account with a registered ML-DSA-87 key and an open EVM window, so a leaked secp256k1 key cannot *send* anything. But **EIP-2612 `permit`** (used by most modern ERC-20s, and by Uniswap's Permit2) is checked on chain with `ecrecover`. A leaked ECDSA key signs a permit **offline**, and the attacker relays it from **their own** account. The victim never sends a transaction, so the window never gets a say.
