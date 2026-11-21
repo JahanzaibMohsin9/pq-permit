@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "live": "tsx --env-file=.env pq-permit-live.ts"
+    "live": "tsx --env-file=.env pq-permit-live.ts",
+    "verify": "tsx --env-file-if-exists=.env verify-live.ts"
   },
   "keywords": [],
   "author": "",

@@ -57,6 +57,7 @@ QoreChain admits an EVM transaction only from an account with a registered ML-DS
 git clone --recursive https://github.com/JahanzaibMohsin9/pq-permit && cd pq-permit
 (cd lib/pqc-forge && npm ci) && forge test      # 29 tests (incl. invariants), real ML-DSA-87
 cd live && npm ci && npm run live               # the testnet run (needs a funded deployer in live/.env)
+npm run verify                                  # read-only: re-check every claim on testnet now (no keys, no gas)
 ```
 
 ## Findings worth knowing (measured live)
