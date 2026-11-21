@@ -1,5 +1,7 @@
 # PQ Permit
 
+[![Built on QoreChain](https://build.qorechain.io/badge/pq-permit.svg)](https://build.qorechain.io/p/pq-permit)
+
 **Gasless token approvals signed with ML-DSA-87, because QoreChain's EVM windows protect *transactions*, not *signatures*.**
 
 > Build Before Q-Day · Post-Quantum dApp track
