@@ -41,8 +41,8 @@ QoreChain admits an EVM transaction only from an account with a registered ML-DS
 |---|---|
 | **Scoped EVM window** | The owner's one-time `approve` goes through a window with `maxTxs=1` and `allowedTargets=[token]` (`MsgOpenEVMWindow` via `@qorechain/sdk`). A later ECDSA-signed transfer was refused live. |
 | **`pqcVerify`** | `PQSig.verifyMessageBy` → `pqcKeyStatus` (registered, algorithm 1, **possession proven**) → `pqcVerify` over QoreSign bytes. It fails closed if the precompile is inactive. |
-| **Two-stage QCAI audit** | **Stage 1 done (85/100):** report in [`docs/audit/`](docs/audit/); each finding mapped to its resolution and regression test in [`docs/AUDIT.md`](docs/AUDIT.md), along with where `pqcVerify` and `pqcKeyStatus` are called. Stage 2 follows on the same setting. |
-| **Foundry tests** | **35 tests with real ML-DSA-87** via [pqc-forge](https://github.com/JahanzaibMohsin9/pqc-forge). They cover forgery, every tampered field, replay (same nonce, cross-chain, cross-contract, another owner), expiry, a copied key without proof, an inactive precompile, overspend, lockdown cancelling signed permits, capped nonce invalidation, a fuzz test, a **stateful invariant suite** (the nonce only goes up; a spender never pulls more than it was granted), and the exploit itself. |
+| **Two-stage QCAI audit** | **Done.** Stage 1 scored 85/100 with 5 findings; Stage 2 scored 85/100 with 4. Both reports (PDF, dated) are in [`docs/audit/`](docs/audit/). Every finding is mapped to its resolution and a named regression test in [`docs/AUDIT.md`](docs/AUDIT.md), which also shows where `pqcVerify` and `pqcKeyStatus` are called. |
+| **Foundry tests** | **36 tests with real ML-DSA-87** via [pqc-forge](https://github.com/JahanzaibMohsin9/pqc-forge). They cover forgery, every tampered field, replay (same nonce, cross-chain, cross-contract, another owner), expiry, a copied key without proof, an inactive precompile, overspend, lockdown cancelling signed permits, capped nonce invalidation, a fuzz test, a **stateful invariant suite** (the nonce only goes up; a spender never pulls more than it was granted), and the exploit itself. |
 
 ## Contracts
 | File | What |
@@ -61,7 +61,7 @@ QoreChain admits an EVM transaction only from an account with a registered ML-DS
 ## Run
 ```sh
 git clone --recursive https://github.com/JahanzaibMohsin9/pq-permit && cd pq-permit
-(cd lib/pqc-forge && npm ci) && forge test      # 35 tests (incl. invariants), real ML-DSA-87
+(cd lib/pqc-forge && npm ci) && forge test      # 36 tests (incl. invariants), real ML-DSA-87
 cd live && npm ci && npm run live               # the testnet run (needs a funded deployer in live/.env)
 npm run verify                                  # read-only: re-check every claim on testnet now (no keys, no gas)
 ```

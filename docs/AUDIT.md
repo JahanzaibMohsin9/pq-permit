@@ -5,7 +5,7 @@ The Post-Quantum dApp track asks for a **two-stage QCAI audit**. Both stages use
 | Stage | Date | Report | Score | Findings |
 |---|---|---|---|---|
 | Stage 1 | 2026-11-21 | [`audit/stage1-2026-11-21.pdf`](audit/stage1-2026-11-21.pdf) | 85/100 (risk: medium) | 1 high, 2 medium, 1 low, 1 info |
-| Stage 2 | to run | `audit/stage2-YYYY-MM-DD.pdf` | | |
+| Stage 2 | 2026-11-21 | [`audit/stage2-2026-11-21.pdf`](audit/stage2-2026-11-21.pdf) | 85/100 (risk: medium) | 1 high, 2 medium, 1 low |
 
 **Audited code.** One file, `PQPermit.audit.sol`, pasted into QCAI. It is the three sources below concatenated without changes; OpenZeppelin v5.4.0 is left as imports.
 - `lib/pqc-forge/src/IQorePQC.sol`
@@ -52,6 +52,19 @@ A hard cap was not added, because an owner under attack should be able to revoke
 
 ### QCAI-5
 PQ Permit keeps Permit2's model: allowances, expirations, nonces, `transferFrom` by the spender, `lockdown` and `invalidateNonces`. It deliberately **replaces the EIP-712 ECDSA signature** with an ML-DSA-87 signature over human-readable text (QoreSign message-signing-v1), because ECDSA is exactly what a quantum attacker breaks. Signature-level compatibility with Permit2 is therefore a non-goal. The function shapes stay close, so integrators can reuse Permit2 patterns.
+
+## Stage 2: after working through Stage 1
+
+Stage 2 used the same setting on the same file. The contract source is unchanged: Stage 1 was worked through with explanations and regression tests, and the FAQ counts all of these as valid. It scored **85/100 with 4 findings, down from 5**. The informational Permit2-compatibility note is gone. The other four are the Stage 1 items again, sometimes reworded. QCAI's line numbers don't match the audited file (line 157 is an error declaration, for example), so they are matched by title:
+
+| Stage 2 finding | Severity | Same as | Resolution |
+|---|---|---|---|
+| Missing access control on critical functions; it suggests `onlyOwner` | HIGH | QCAI-1 | **False positive, by design.** Stage 2 now points at the self-service functions (`lockdown`, `invalidateNonces`, `approve`) as well as `permit`. They act only on `msg.sender`'s own nonce and allowances. PQ Permit deliberately has **no owner or admin**: an `onlyOwner` role would add a central key that could freeze everyone's approvals. New test: `test_qcai1_selfServiceFunctionsOnlyTouchTheCaller` (a stranger calling all three changes only their own state). |
+| Potential overflow in nonce management | MEDIUM | QCAI-3 | Checked arithmetic, so it reverts instead of wrapping; growth per call is bounded (tests listed above). |
+| Front-running in `permit` | MEDIUM | QCAI-2 | The front-runner can only submit the owner's own signed permit, and the state is identical (test above). |
+| Unbounded loop in `lockdown` | LOW | QCAI-4 | The loop runs over the caller's own input and state, and its gas is linear (test above). |
+
+**Result:** no finding remains that needs a code change. Every finding from both stages is covered by a named regression test, and there are **36 tests**, all passing.
 
 ## PQC design: where the precompiles are called
 

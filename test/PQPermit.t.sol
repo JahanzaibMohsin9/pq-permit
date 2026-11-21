@@ -326,6 +326,29 @@ contract PQPermitTest is Test, PqcForge {
         permit2.permit(alice, q, sig);
     }
 
+    /// QCAI Stage 2 (HIGH, "add onlyOwner to lockdown/invalidateNonces/approve"): these functions act only on
+    /// msg.sender's own nonce and allowances. Anyone calling them changes only their own state, so there is no
+    /// privileged role to restrict (PQ Permit deliberately has no owner or admin).
+    function test_qcai1_selfServiceFunctionsOnlyTouchTheCaller() public {
+        PQPermit.PermitSingle memory p = _permit(100e6, 0);
+        permit2.permit(alice, p, _sign(aliceKey, alice, p));
+        uint256 aliceNonce = permit2.nonces(alice);
+
+        address mallory = makeAddr("mallory");
+        PQPermit.TokenSpender[] memory pairs = new PQPermit.TokenSpender[](1);
+        pairs[0] = PQPermit.TokenSpender(address(token), spender);
+        vm.startPrank(mallory);
+        permit2.lockdown(pairs); // mallory "locks down" alice's pair...
+        permit2.invalidateNonces(permit2.nonces(mallory) + 100);
+        permit2.approve(address(token), spender, 0, uint48(block.timestamp + 1));
+        vm.stopPrank();
+
+        (uint160 amount,) = permit2.allowance(alice, address(token), spender);
+        assertEq(amount, 100e6, "alice's allowance is untouched");
+        assertEq(permit2.nonces(alice), aliceNonce, "alice's nonce is untouched");
+        assertGt(permit2.nonces(mallory), 0, "only mallory's own nonce moved");
+    }
+
     /// QCAI-2 (MEDIUM, front-running): a front-runner can only submit the owner's own signed permit, so the
     /// on-chain result is identical; the honest relayer's copy then reverts with InvalidNonce and no funds move.
     function test_qcai2_frontRunnerProducesTheSameStateAndTheLateCopyRevertsHarmlessly() public {
