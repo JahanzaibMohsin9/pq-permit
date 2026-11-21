@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test, console, stdError} from "forge-std/Test.sol";
 import {PqcForge} from "@pqc-forge/PqcForge.sol";
 import {PQC_VERIFY} from "@pqc-forge/IQorePQC.sol";
 import {PQPermit} from "../src/PQPermit.sol";
@@ -298,6 +298,108 @@ contract PQPermitTest is Test, PqcForge {
         permit2.permit(alice, p2, _sign(aliceKey, alice, p2));
         (uint160 amount,) = permit2.allowance(alice, address(token), spender);
         assertEq(amount, 50e6);
+    }
+
+    // ---------------------------------------------------------------- QCAI Stage 1 findings (regressions)
+
+    /// QCAI-1 (HIGH, "missing access control on permit"): permit is public by design (gasless relaying).
+    /// The access control is the owner's ML-DSA-87 signature: any caller gets exactly the signed result,
+    /// and the caller itself gains nothing.
+    function test_qcai1_anyCallerCanRelayButOnlyTheSignedSpenderGetsTheAllowance() public {
+        address mallory = makeAddr("mallory");
+        PQPermit.PermitSingle memory p = _permit(100e6, 0);
+        bytes memory sig = _sign(aliceKey, alice, p);
+        vm.prank(mallory);
+        permit2.permit(alice, p, sig);
+        (uint160 forSpender,) = permit2.allowance(alice, address(token), spender);
+        (uint160 forMallory,) = permit2.allowance(alice, address(token), mallory);
+        assertEq(forSpender, 100e6);
+        assertEq(forMallory, 0);
+        vm.prank(mallory);
+        vm.expectRevert(abi.encodeWithSelector(PQPermit.AllowanceExpired.selector, 0));
+        permit2.transferFrom(alice, mallory, 1, address(token));
+        // without a valid owner signature, no caller can create an allowance at all
+        PQPermit.PermitSingle memory q = _permit(100e6, 1);
+        q.spender = mallory;
+        vm.prank(mallory);
+        vm.expectRevert(PQPermit.InvalidSignature.selector);
+        permit2.permit(alice, q, sig);
+    }
+
+    /// QCAI-2 (MEDIUM, front-running): a front-runner can only submit the owner's own signed permit, so the
+    /// on-chain result is identical; the honest relayer's copy then reverts with InvalidNonce and no funds move.
+    function test_qcai2_frontRunnerProducesTheSameStateAndTheLateCopyRevertsHarmlessly() public {
+        address frontRunner = makeAddr("frontRunner");
+        PQPermit.PermitSingle memory p = _permit(100e6, 0);
+        bytes memory sig = _sign(aliceKey, alice, p);
+        uint256 aliceBefore = token.balanceOf(alice);
+        vm.prank(frontRunner);
+        permit2.permit(alice, p, sig);
+        vm.prank(relayer);
+        vm.expectRevert(abi.encodeWithSelector(PQPermit.InvalidNonce.selector, 1, 0));
+        permit2.permit(alice, p, sig);
+        (uint160 amount, uint48 exp) = permit2.allowance(alice, address(token), spender);
+        assertEq(amount, 100e6);
+        assertEq(exp, p.expiration);
+        assertEq(token.balanceOf(alice), aliceBefore);
+    }
+
+    /// QCAI-3 (MEDIUM, nonce overflow): nonce arithmetic is checked (Solidity 0.8), so it can never wrap;
+    /// even a forced near-max nonce makes lockdown revert instead of resetting the nonce space.
+    function test_qcai3_nonceArithmeticRevertsInsteadOfWrapping() public {
+        bytes32 slot = keccak256(abi.encode(alice, uint256(_noncesSlot())));
+        vm.store(address(permit2), slot, bytes32(type(uint256).max - 10));
+        assertEq(permit2.nonces(alice), type(uint256).max - 10);
+        PQPermit.TokenSpender[] memory pairs = new PQPermit.TokenSpender[](0);
+        vm.prank(alice);
+        vm.expectRevert(stdError.arithmeticError);
+        permit2.lockdown(pairs);
+        assertEq(permit2.nonces(alice), type(uint256).max - 10);
+    }
+
+    /// Storage slot of the `nonces` mapping, found by probing (keeps the test independent of layout changes).
+    function _noncesSlot() internal returns (uint256) {
+        vm.prank(alice);
+        permit2.invalidateNonces(7);
+        for (uint256 i; i < 32; ++i) {
+            if (uint256(vm.load(address(permit2), keccak256(abi.encode(alice, i)))) == 7) return i;
+        }
+        revert("nonces slot not found");
+    }
+
+    /// QCAI-3 (fuzz): every nonce change only increases it, by at most MAX_NONCE_JUMP per call.
+    function testFuzz_qcai3_nonceOnlyGrowsAndIsBoundedPerCall(uint256 target, bool useLockdown) public {
+        uint256 before = permit2.nonces(alice);
+        vm.startPrank(alice);
+        if (useLockdown) {
+            permit2.lockdown(new PQPermit.TokenSpender[](0));
+        } else {
+            target = bound(target, before + 1, before + permit2.MAX_NONCE_JUMP());
+            permit2.invalidateNonces(target);
+        }
+        vm.stopPrank();
+        uint256 afterN = permit2.nonces(alice);
+        assertGt(afterN, before);
+        assertLe(afterN - before, permit2.MAX_NONCE_JUMP());
+    }
+
+    /// QCAI-4 (LOW, unbounded loop in lockdown): the loop runs over the caller's own calldata and writes only
+    /// the caller's own allowances, so its gas cost is paid by, and bounded for, the caller alone; another
+    /// owner's state and operations are untouched.
+    function test_qcai4_lockdownCostIsLinearAndOnlyAffectsTheCaller() public {
+        address bob = makeAddr("bob");
+        vm.prank(bob);
+        permit2.approve(address(token), spender, 5e6, uint48(block.timestamp + 1 days));
+        PQPermit.TokenSpender[] memory pairs = new PQPermit.TokenSpender[](200);
+        for (uint256 i; i < pairs.length; ++i) pairs[i] = PQPermit.TokenSpender(address(token), address(uint160(0x1000 + i)));
+        vm.prank(alice);
+        uint256 g = gasleft();
+        permit2.lockdown(pairs);
+        g -= gasleft();
+        assertLt(g / pairs.length, 30_000); // bounded per pair: 200 pairs well under a block
+        (uint160 bobAllowance,) = permit2.allowance(bob, address(token), spender);
+        assertEq(bobAllowance, 5e6);
+        assertEq(permit2.nonces(bob), 0);
     }
 
     // ---------------------------------------------------------------- fuzz (no crypto: direct approvals)

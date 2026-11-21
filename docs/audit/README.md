@@ -1,1 +1,1 @@
-Put the dated QCAI Stage 1 and Stage 2 PDF reports here (see ../AUDIT.md).
+QCAI audit reports (QoreChain dashboard, "Ethereum (EVM/Solidity)" setting), each dated. See ../AUDIT.md for the finding -> resolution map.
