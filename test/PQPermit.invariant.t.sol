@@ -122,14 +122,10 @@ contract PQPermitInvariantTest is Test, PqcForge {
         }
     }
 
-    /// forge-config: default.invariant.runs = 16
-    /// forge-config: default.invariant.depth = 24
     function invariant_nonceIsMonotonic() public view {
         assertFalse(handler.ghostNonceDecreased());
     }
 
-    /// forge-config: default.invariant.runs = 16
-    /// forge-config: default.invariant.depth = 24
     function invariant_spenderNeverPullsMoreThanGranted() public view {
         assertLe(handler.ghostSpent(), handler.ghostGranted());
         assertEq(token.balanceOf(handler.sink()), handler.ghostSpent());

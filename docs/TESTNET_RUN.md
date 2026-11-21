@@ -33,7 +33,7 @@ The owner gets 2 QOR for fees, registers an ML-DSA-87 key with proof of possessi
 
 Owner key status from the `pqcKeyStatus` precompile: registered=true, algorithm=1, key=2592 bytes, possessionProven=true.
 
-The owner signs this human-readable text (QoreSign message-signing-v1, exactly what QoreX `signArbitrary` signs):
+The owner signs this human-readable text (QoreSign message-signing-v1, the format QoreX `signArbitrary` uses; the extension doesn't support `signArbitrary` yet, so the live run signs with `@qorechain/sdk`):
 
 ```
 PQ Permit v1

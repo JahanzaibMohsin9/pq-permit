@@ -134,7 +134,7 @@ async function main() {
   };
   const text = (await publicClient.readContract({ address: pq, abi: PQ.abi, functionName: "permitText", args: [owner.evm, permit] })) as Hex;
   const message = concat([toBytes("qorechain-msg-v1|qorechain-diana|"), toBytes(text)]);
-  say(`The owner signs this human-readable text (QoreSign message-signing-v1, exactly what QoreX \`signArbitrary\` signs):\n\n\`\`\`\n${Buffer.from(text.slice(2), "hex").toString("utf8")}\n\`\`\`\n`);
+  say(`The owner signs this human-readable text (QoreSign message-signing-v1, the format QoreX \`signArbitrary\` uses; the extension doesn't support \`signArbitrary\` yet, so this run signs with \`@qorechain/sdk\`):\n\n\`\`\`\n${Buffer.from(text.slice(2), "hex").toString("utf8")}\n\`\`\`\n`);
 
   say(`Attacks (each simulated with \`eth_call\` and refused, so no gas is spent):`);
   const ecdsaSig = await privateKeyToAccount(owner.privateKey as Hex).signMessage({ message: { raw: toHex(message) } });
