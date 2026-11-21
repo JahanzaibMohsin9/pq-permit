@@ -2,6 +2,8 @@
 
 Run at 2026-11-20T22:46:51.895Z.
 
+> **Explorer links:** [explore.qore.network](https://explore.qore.network) opens on **mainnet**. Click **Testnet** in its top bar once (it remembers the choice), then the links below resolve. EVM transactions are linked by their Cosmos transaction hash, because the explorer does not look up `0x` hashes; the link text keeps the EVM hash.
+
 | Role | Address |
 |---|---|
 | Deployer / relayer / spender | `0x1D71563914D38D25b33962EC32DA9fB8F7f292C9` (`qor1r4c4vwg56wxjtveevtkr9k5lhrml9ykf6a2dqx`) |
@@ -10,24 +12,24 @@ Run at 2026-11-20T22:46:51.895Z.
 
 ## Part A: the hole. A leaked ECDSA key drains a standard EIP-2612 token
 
-- deploy PermitUSD (OpenZeppelin ERC20Permit) at `0x225bff609fbd6d2fa908b5a7036db13d78ab9dc6`: [`0xe82f7d11…`](https://explore.qore.network/tx/0xe82f7d11b94949e302c24224fe07ccdf9cb44c84cebc2bca75a7d51e289079c0)
-- mint 1000 pUSD to victim `0x893f60582E7eDc579E025fF363539b5a7A3258E2` (gas billed 150000): [`0x04b80f40…`](https://explore.qore.network/tx/0x04b80f407c4fb88d0cfe3f4b4909da2d7d7e7426278be2d91bcc81092bc4830d)
+- deploy PermitUSD (OpenZeppelin ERC20Permit) at `0x225bff609fbd6d2fa908b5a7036db13d78ab9dc6`: [`0xe82f7d11…`](https://explore.qore.network/tx/A964DB64A5B33B169259AD6C084DDBF567A853224801D534D4FD19246A7FD918)
+- mint 1000 pUSD to victim `0x893f60582E7eDc579E025fF363539b5a7A3258E2` (gas billed 150000): [`0x04b80f40…`](https://explore.qore.network/tx/6FA63C63D9F452A1BEA96B3463C48A76FBAF5FFBEA683890D807313CD3AEB47D)
 The victim's ECDSA key signs a permit **offline**. The attacker relays it from their own account:
-- attacker relays permit(victim → attacker, unlimited) (gas billed 150000): [`0x01e077b6…`](https://explore.qore.network/tx/0x01e077b6105d6ed5bb4597414a8a2948d281f432f0fefa98478cb862b7ac4642)
-- attacker transferFrom(victim → attacker, 1000 pUSD) (gas billed 150000): [`0x07350868…`](https://explore.qore.network/tx/0x07350868864484ea0ba891b69015d8a2e6f7e0112483f359c77d670121441fae)
+- attacker relays permit(victim → attacker, unlimited) (gas billed 150000): [`0x01e077b6…`](https://explore.qore.network/tx/666A74BDA08702EB8F4B44283DB033B0D564EF4F77075DE401A9C6321402D229)
+- attacker transferFrom(victim → attacker, 1000 pUSD) (gas billed 150000): [`0x07350868…`](https://explore.qore.network/tx/19C6567E2796FF779BBCB0FE44A8AE11D6442E188A6C989ECFE25495F5E6957D)
 
 **Result:** victim balance = **0**. The victim's EVM nonce is **0**: they never sent a transaction, had no EVM window and no PQ key. EVM windows protect transactions, not signatures.
 
 ## Part B: the fix. PQ Permit (ML-DSA-87 signed approvals)
 
-- deploy Demo USD (no permit) at `0xed467f20f5dc4972eb3b896935d8a22565a53138`: [`0xd81a0bc8…`](https://explore.qore.network/tx/0xd81a0bc8418ff25202ffc141c11819baa9464361058d0028c486126e41f5dace)
-- deploy PQPermit at `0x851a2704f0c9fc282ca1f2e28353f46e3c04a27a`: [`0x9f31c480…`](https://explore.qore.network/tx/0x9f31c480dfea6815bd00ea7161388cf49eb5678358760fa8b17dcd518cfab518)
-- mint 1000 dUSD to owner (gas billed 150000): [`0x544d2831…`](https://explore.qore.network/tx/0x544d28311f0a96d2b320cab604fee46f5ba34a6c0f4dbfed7884db186d7931d7)
+- deploy Demo USD (no permit) at `0xed467f20f5dc4972eb3b896935d8a22565a53138`: [`0xd81a0bc8…`](https://explore.qore.network/tx/60D453F09498B0F805A40B9E9BC75B67692DD40CD1E2D253B23F578D379FFDFA)
+- deploy PQPermit at `0x851a2704f0c9fc282ca1f2e28353f46e3c04a27a`: [`0x9f31c480…`](https://explore.qore.network/tx/35C1853D4E884D8C66688E3B95C5B08D2E04DE0F0779A30F90C2C31E2BAC1606)
+- mint 1000 dUSD to owner (gas billed 150000): [`0x544d2831…`](https://explore.qore.network/tx/12E98C4BF9E6666CEF970AEDDFEDDE0D138FBA92591000C97CCE94E7C4BB1D68)
 
 The owner gets 2 QOR for fees, registers an ML-DSA-87 key with proof of possession, and opens a **scoped** EVM window: 1 transaction, only to the dUSD contract.
 - fund owner with 2 QOR (hybrid-signed native send): [`B0CF14BF8F…`](https://explore.qore.network/tx/B0CF14BF8FD9D01B12BBF1A3E7A48D3EBCCAE86D90DC363AF2209CA4EADE058A)
 - owner opens scoped window (1 tx, allowedTargets=[dUSD], cap 30000 uqor): [`917EE88A31…`](https://explore.qore.network/tx/917EE88A31C572FD21F9F7FDBC2646752A23AAEDE09FCD1B52B05F1F60D57DCC)
-- owner approves PQPermit once (the only EVM tx the owner ever sends) (gas billed 60000): [`0xab747059…`](https://explore.qore.network/tx/0xab74705904fdddee28f91f6358d0d172e752212d2ac55c99f02bb66da1036365)
+- owner approves PQPermit once (the only EVM tx the owner ever sends) (gas billed 60000): [`0xab747059…`](https://explore.qore.network/tx/E9B48A5413E26A4287CAA29407CE540A40550F18A29BC7B8D472DE58060F89B4)
 
 Owner key status from the `pqcKeyStatus` precompile: registered=true, algorithm=1, key=2592 bytes, possessionProven=true.
 
@@ -52,8 +54,8 @@ Attacks (each simulated with `eth_call` and refused, so no gas is spent):
 - Direct EVM transfer signed with the owner's leaked ECDSA key → **refused by the chain: failed to broadcast transaction: the EVM authorisation window for qor1e9qgcuwuzg7xz88zjsj2ggnnljrxnsmup7pvfa does not admit this transacti** (window: exhausted)
 
 The owner's real ML-DSA-87 signature (4627 bytes), relayed by someone else:
-- relayer submits PQ permit (owner sends nothing) (gas billed 1000000): [`0xe77f18d3…`](https://explore.qore.network/tx/0xe77f18d3451748ffed17df43ae5e3b79a8f8ea984c772835399203b9ecc403f5)
-- spender pulls 60 dUSD to merchant (gas billed 100000): [`0x01edf995…`](https://explore.qore.network/tx/0x01edf995587765ece3ea4320b753f62b3db37f9c3bbff77dc590bfdbcd427977)
+- relayer submits PQ permit (owner sends nothing) (gas billed 1000000): [`0xe77f18d3…`](https://explore.qore.network/tx/5B2BF5A8DE1BF7FEA78758EB7C1F65DC5143BB8CA84F509D426006B6E97DC283)
+- spender pulls 60 dUSD to merchant (gas billed 100000): [`0x01edf995…`](https://explore.qore.network/tx/D714BC03E8AC83BA321758B034CD65ED9427A529D288C6B74D254CE4EC08B397)
 
 **Result:** merchant received **60 dUSD**. Remaining allowance **40 dUSD**. Real gas cost of an ML-DSA-87 permit (estimateGas): **~321331**; billed 1000000 because of the 2M limit we set (see notes).
 A replay of the same signature → **reverted: InvalidNonce**
