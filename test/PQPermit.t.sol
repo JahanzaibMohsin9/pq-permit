@@ -402,6 +402,32 @@ contract PQPermitTest is Test, PqcForge {
         assertEq(permit2.nonces(bob), 0);
     }
 
+    /// Second review L-1 (Permit2 parity): approve(..., 0) does NOT cancel a permit that was signed but not yet
+    /// relayed; lockdown (or invalidateNonces) does. Pins the behaviour so docs and wallets can rely on it.
+    function test_review_approveZeroDoesNotRevokeASignedPermitButLockdownDoes() public {
+        PQPermit.PermitSingle memory p = _permit(500e6, 0);
+        p.expiration = uint48(block.timestamp + 30 days);
+        p.sigDeadline = block.timestamp + 30 days;
+        bytes memory sig = _sign(aliceKey, alice, p);
+
+        uint256 snap = vm.snapshotState();
+        vm.prank(alice);
+        permit2.approve(address(token), spender, 0, uint48(block.timestamp + 1)); // "revoke" with approve(0)...
+        vm.warp(block.timestamp + 7 days);
+        permit2.permit(alice, p, sig); // ...but the old signature still re-arms the allowance
+        (uint160 amount,) = permit2.allowance(alice, address(token), spender);
+        assertEq(amount, 500e6);
+
+        vm.revertToState(snap);
+        PQPermit.TokenSpender[] memory pairs = new PQPermit.TokenSpender[](1);
+        pairs[0] = PQPermit.TokenSpender(address(token), spender);
+        vm.prank(alice);
+        permit2.lockdown(pairs); // the documented revoke path
+        vm.warp(block.timestamp + 7 days);
+        vm.expectRevert(abi.encodeWithSelector(PQPermit.InvalidNonce.selector, permit2.MAX_NONCE_JUMP(), 0));
+        permit2.permit(alice, p, sig);
+    }
+
     // ---------------------------------------------------------------- fuzz (no crypto: direct approvals)
 
     function testFuzz_allowanceAccounting(uint160 granted, uint160 spend1, uint160 spend2) public {
