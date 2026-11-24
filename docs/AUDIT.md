@@ -84,6 +84,14 @@ Behaviour checked on the live chain differs from the docs in a few places: an un
 
 All tests use **real ML-DSA-87** (FIPS 204) through pqc-forge, which is checked against the official test vectors and against the live chain. That includes the stateful invariant suite (`test/PQPermit.invariant.t.sol`).
 
+## Cryptographic inventory (QoreScan CBOM)
+
+[`cbom.json`](cbom.json) is a CycloneDX 1.6 CBOM written by QoreScan Community (`@qorechain/qorescan`, `cd live && npm run cbom`). It scans the audited Solidity (`src/`, `PQSig.sol`, `IQorePQC.sol`) and reads live testnet state: the active precompiles and the registered keys of the owner, the public demo owner and the relayer. It records:
+- **ML-DSA-87** at `pqcVerify` (`0x…0a01`) and `pqcKeyStatus` (`0x…0a02`), where `IQorePQC.sol` declares them and `PQSig.sol` imports them, plus each account's registered key;
+- the classical algorithms that remain: secp256k1 ECDSA and Keccak-256 on the EVM lane, and Ed25519 for validator consensus keys.
+
+It is an inventory aid, not a certification; it complements the audit above.
+
 ## Scope and notes
 - In scope: `src/PQPermit.sol` and `lib/pqc-forge/src/PQSig.sol` (with `IQorePQC.sol`).
 - `pqcVerify` and `pqcKeyStatus` are QoreChain precompiles. Static analysers see them as external calls to addresses with no code. They are active on qorechain-diana.

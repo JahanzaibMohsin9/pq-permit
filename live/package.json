@@ -4,10 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsx --test test/qoresign.test.ts",
     "live": "tsx --env-file=.env pq-permit-live.ts",
     "verify": "tsx --env-file-if-exists=.env verify-live.ts",
-    "sign-permit": "tsx --env-file-if-exists=.env sign-permit.ts"
+    "sign-permit": "tsx --env-file-if-exists=.env sign-permit.ts",
+    "demo-owner": "tsx --env-file=.env demo-owner.ts",
+    "cbom": "qorescan scan --name \"PQ Permit\" --network testnet --solidity ../src --solidity ../lib/pqc-forge/src/PQSig.sol --solidity ../lib/pqc-forge/src/IQorePQC.sol --address qor1e9qgcuwuzg7xz88zjsj2ggnnljrxnsmup7pvfa --address qor14v28f9xlkz2urgyxlnl0c9ceuqkmrheqcvnl3y --address qor1r4c4vwg56wxjtveevtkr9k5lhrml9ykf6a2dqx --out ../docs/cbom.json"
   },
   "keywords": [],
   "author": "",
@@ -16,10 +18,15 @@
   "private": "true",
   "dependencies": {
     "@cosmjs/stargate": "^0.39.0",
+    "@noble/hashes": "^2.4.0",
     "@qorechain/evm": "^0.14.0",
     "@qorechain/pqc": "^0.2.3",
+    "@qorechain/qoresign": "^0.2.0",
     "@qorechain/sdk": "^0.14.0",
     "tsx": "^4.19.2",
     "viem": "^2.53.1"
+  },
+  "devDependencies": {
+    "@qorechain/qorescan": "^0.1.0"
   }
 }

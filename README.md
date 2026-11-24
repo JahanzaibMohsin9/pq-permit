@@ -8,7 +8,7 @@
 >
 > **Demo video (2:47):** https://youtu.be/FMYFrOpnuGQ
 >
-> **Try it in the browser:** https://jahanzaibmohsin9.github.io/pq-permit/ (live proof on testnet, account check, compose and check a permit)
+> **Try it in the browser:** https://jahanzaibmohsin9.github.io/pq-permit/ (live proof on testnet, account check, and compose, **sign** and check a permit, no wallet needed: a public demo owner signs in your browser with `@qorechain/qoresign`)
 
 ## The hole
 QoreChain admits an EVM transaction only from an account with a registered ML-DSA-87 key and an open EVM window, so a leaked secp256k1 key cannot *send* anything. But **EIP-2612 `permit`** (used by most modern ERC-20s, and by Uniswap's Permit2) is checked on chain with `ecrecover`. A leaked ECDSA key signs a permit **offline**, and the attacker relays it from **their own** account. The victim never sends a transaction, so the window never gets a say.
@@ -42,6 +42,7 @@ QoreChain admits an EVM transaction only from an account with a registered ML-DS
 | **Scoped EVM window** | The owner's one-time `approve` goes through a window with `maxTxs=1` and `allowedTargets=[token]` (`MsgOpenEVMWindow` via `@qorechain/sdk`). A later ECDSA-signed transfer was refused live. |
 | **`pqcVerify`** | `PQSig.verifyMessageBy` → `pqcKeyStatus` (registered, algorithm 1, **possession proven**) → `pqcVerify` over QoreSign bytes. It fails closed if the precompile is inactive. |
 | **Two-stage QCAI audit** | **Done.** Stage 1 scored 85/100 with 5 findings; Stage 2 scored 85/100 with 4. Both reports (PDF, dated) are in [`docs/audit/`](docs/audit/). Every finding is mapped to its resolution and a named regression test in [`docs/AUDIT.md`](docs/AUDIT.md), which also shows where `pqcVerify` and `pqcKeyStatus` are called. |
+| **QoreChain kits** | `@qorechain/qoresign` builds and checks the message-signing-v1 bytes (web page and `live/`; an offline test proves they are the bytes behind the real on-chain permit), `@qorechain/qorex-types` connects QoreX, `@qorechain/sdk` + `@qorechain/evm` run the testnet steps, `@qorechain/pqc` powers the tests, and **QoreScan** inventories the contracts' cryptography into a CycloneDX CBOM ([`docs/cbom.json`](docs/cbom.json)). |
 | **Foundry tests** | **36 tests with real ML-DSA-87** via [pqc-forge](https://github.com/JahanzaibMohsin9/pqc-forge). They cover forgery, every tampered field, replay (same nonce, cross-chain, cross-contract, another owner), expiry, a copied key without proof, an inactive precompile, overspend, lockdown cancelling signed permits, capped nonce invalidation, a fuzz test, a **stateful invariant suite** (the nonce only goes up; a spender never pulls more than it was granted), and the exploit itself. |
 
 ## Contracts
@@ -64,6 +65,8 @@ git clone --recursive https://github.com/JahanzaibMohsin9/pq-permit && cd pq-per
 (cd lib/pqc-forge && npm ci) && forge test      # 36 tests (incl. invariants), real ML-DSA-87
 cd live && npm ci && npm run live               # the testnet run (needs a funded deployer in live/.env)
 npm run verify                                  # read-only: re-check every claim on testnet now (no keys, no gas)
+npm test                                        # offline: QoreSign bytes = the bytes of the real on-chain permit
+npm run cbom                                    # QoreScan CBOM of the contracts + live keys -> docs/cbom.json
 ```
 
 ## Findings worth knowing (measured live)
@@ -82,7 +85,7 @@ See also [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 | Front-running griefing on `permit` (the known Permit2 trait) | Documented: integrators should tolerate `InvalidNonce` when the allowance is already set. |
 
 ## Credits
-- [pqc-forge](https://github.com/JahanzaibMohsin9/pqc-forge), OpenZeppelin Contracts v5.4.0, forge-std, `@qorechain/sdk`, `@qorechain/evm`, `@qorechain/pqc` and viem.
+- [pqc-forge](https://github.com/JahanzaibMohsin9/pqc-forge), OpenZeppelin Contracts v5.4.0, forge-std, `@qorechain/sdk`, `@qorechain/evm`, `@qorechain/pqc`, `@qorechain/qoresign`, `@qorechain/qorex-types`, `@qorechain/qorescan` (QoreScan Community) and viem.
 - The Permit2 design (Uniswap) inspired the allowance model.
 - The native-lane helpers are adapted from qorechain/build-before-qday (Apache-2.0).
 

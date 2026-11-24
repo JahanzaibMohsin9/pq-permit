@@ -60,6 +60,24 @@ The owner's real ML-DSA-87 signature (4627 bytes), relayed by someone else:
 **Result:** merchant received **60 dUSD**. Remaining allowance **40 dUSD**. Real gas cost of an ML-DSA-87 permit (estimateGas): **~321331**; billed 1000000 because of the 2M limit we set (see notes).
 A replay of the same signature → **reverted: InvalidNonce**
 
+## Part C: public demo owner (2026-11-25), so anyone can sign a valid permit
+The web page and `npm run verify` need an owner whose ML-DSA-87 key anyone can use. `live/demo-owner.ts` set one up:
+- demo owner `0xab147494dfb095c1a086fcfefC1719e02dB1df20` (`qor14v28f9xlkz2urgyxlnl0c9ceuqkmrheqcvnl3y`); its ML-DSA-87 seed is public: `SHAKE-256("pq-permit:public-demo-owner:v1")` = `0x0abc3a8e…0da283`. Its secp256k1 key stays private and it holds no tokens.
+- fund 0.25 QOR from the owner (hybrid-signed native send): [`C1C8951D…`](https://explore.qore.network/tx/C1C8951D0ECF75BF487054A48AA1C1C201DB6112C4779272BB7E8365BB4A99FF)
+- register its ML-DSA-87 key with proof of possession: [`B9C8916C…`](https://explore.qore.network/tx/B9C8916C391D160193D8866EB2D347C3D3753FA13EC6CE88FBDE07DFE36196CE)
+- `pqcKeyStatus`: registered, algorithm 1, possession proven, and the key equals the one derived from the public seed.
+
+`npm run verify` now ends with the positive case, signed on the spot with `@qorechain/qoresign`:
+```
+A valid permit, signed now with @qorechain/qoresign by the public demo owner:
+  demo owner key on chain = public seed's key . ✓
+  QoreSign pqVerify (off chain) ............... ✓
+  PQPermit.permit (eth_call) .................. accepted ✓
+  same signature, one bit flipped -> InvalidSignature
+  same signature, amount changed  -> InvalidSignature
+```
+The owner's own key, derived with QoreSign's canonical derivation (`npm run sign-permit`), was also checked: its permit is accepted by `eth_call`.
+
 ## Notes and findings
 - **Gas billing:** on QoreChain a receipt's `gasUsed` is at least **50% of the gas limit**. Every billed figure above is exactly half the limit we set. The real cost of an ML-DSA-87 PQ permit is **~321331 gas** (`eth_estimateGas`). Set tight gas limits.
 - **Scoped window:** the owner's window admitted exactly one transaction, only to the token (`allowedTargets`). After that, a direct transfer signed with the owner's ECDSA key was **refused by the chain**.

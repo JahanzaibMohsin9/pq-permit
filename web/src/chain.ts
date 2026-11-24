@@ -1,12 +1,13 @@
+import { messagePqSignBytes, pqKeyFromSeed } from "@qorechain/qoresign";
+import { QORECHAIN_TESTNET_CHAIN_ID } from "@qorechain/qorex-types";
 import {
   BaseError,
   ContractFunctionRevertedError,
-  concat,
   createPublicClient,
   defineChain,
+  hexToBytes,
   http,
   parseAbi,
-  toBytes,
   type Address,
   type Hex,
 } from "viem";
@@ -32,6 +33,19 @@ export const LIVE = {
   relayedPermitTx: "0xe77f18d3451748ffed17df43ae5e3b79a8f8ea984c772835399203b9ecc403f5",
 } as const satisfies Record<string, Address | Hex>;
 
+/**
+ * Public demo owner (live/demo-owner.ts). Its ML-DSA-87 seed is public on purpose:
+ * SHAKE-256("pq-permit:public-demo-owner:v1", 32 bytes). It is registered on chain with proof of possession and
+ * holds no tokens, so anyone can sign a real, valid permit for it in the browser.
+ */
+export const DEMO = {
+  owner: "0xab147494dfb095c1a086fcfefC1719e02dB1df20" as Address,
+  seed: "0x0abc3a8e1d33a581539a0e14ff05969c39648dcf33b41cc93f03e179d70da283" as Hex,
+};
+export const demoKey = () => pqKeyFromSeed(hexToBytes(DEMO.seed));
+
+export const CHAIN_ID = QORECHAIN_TESTNET_CHAIN_ID; // "qorechain-diana"
+
 export const REPO = "https://github.com/JahanzaibMohsin9/pq-permit";
 export const VIDEO = "https://youtu.be/FMYFrOpnuGQ";
 
@@ -46,8 +60,8 @@ export { pqPermitAbi };
 
 export type PermitSingle = { token: Address; spender: Address; amount: bigint; expiration: number; nonce: bigint; sigDeadline: bigint };
 
-/** QoreSign message-signing-v1: the bytes an ML-DSA-87 owner key signs for a given text. */
-export const qoreSignBytes = (textHex: Hex) => concat([toBytes("qorechain-msg-v1|qorechain-diana|"), toBytes(textHex)]);
+/** QoreSign message-signing-v1 (@qorechain/qoresign): "qorechain-msg-v1|qorechain-diana|" + text, the bytes PQSig.sol verifies. */
+export const qoreSignBytes = (textHex: Hex) => messagePqSignBytes(CHAIN_ID, hexToBytes(textHex));
 
 export async function keyStatus(account: Address) {
   const [registered, alg, pubkey, proven] = (await client.readContract({
@@ -56,7 +70,7 @@ export async function keyStatus(account: Address) {
     functionName: "pqcKeyStatus",
     args: [account],
   })) as [boolean, number, Hex, boolean];
-  return { registered, alg, keyBytes: (pubkey.length - 2) / 2, proven, ready: registered && alg === 1 && proven };
+  return { registered, alg, pubkey, keyBytes: (pubkey.length - 2) / 2, proven, ready: registered && alg === 1 && proven };
 }
 
 /** Name of the custom error a call reverts with, "OK" if it succeeds. */

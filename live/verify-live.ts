@@ -4,11 +4,15 @@
  *   npm run verify
  * If OWNER_MNEMONIC is set in .env, it also signs the attack with the owner's real secp256k1 key
  * (the "leaked key"); otherwise a random ECDSA key stands in for it.
+ * The positive check uses the public demo owner (demo-owner.ts): its ML-DSA-87 seed is public, so anyone can
+ * sign a fresh permit with @qorechain/qoresign and see the live contract accept it, with no secrets.
  */
+import { shake256 } from "@noble/hashes/sha3.js";
 import { mldsa87 } from "@qorechain/pqc";
-import { BaseError, ContractFunctionRevertedError, concat, toBytes, toHex, type Address, type Hex } from "viem";
+import { messagePqSignBytes, pqKeyFromSeed, pqSign, pqVerify } from "@qorechain/qoresign";
+import { BaseError, ContractFunctionRevertedError, hexToBytes, toHex, type Address, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { artifact, loadState, publicClient } from "./lib.ts";
+import { NET, artifact, loadState, publicClient } from "./lib.ts";
 import { deriveUnifiedAccount } from "@qorechain/sdk";
 
 const st = loadState();
@@ -65,7 +69,7 @@ line(`Attacks, re-tried now as eth_call:`);
 const now = BigInt(Math.floor(Date.now() / 1000));
 const permit = { token: dusd, spender: "0xDc4925077A595F6029379DD7faCFBB0713218F09" as Address, amount: 40_000_000n, expiration: Number(now + 3600n), nonce, sigDeadline: now + 600n };
 const text = (await read(pq, PQ, "permitText", [owner, permit])) as Hex;
-const message = concat([toBytes("qorechain-msg-v1|qorechain-diana|"), toBytes(text)]);
+const message = messagePqSignBytes(NET.chainId, hexToBytes(text)); // QoreSign message-signing-v1
 const sim = (signature: Hex) =>
   publicClient.simulateContract({ account: relayer, address: pq, abi: PQ, functionName: "permit", args: [owner, permit, signature] });
 
@@ -87,4 +91,22 @@ const used = decodeFunctionData({ abi: PQ, data: tx.input });
 line(`  replay of the owner's real ${((used.args![2] as Hex).length - 2) / 2}-byte signature -> ${await revertName(
   publicClient.simulateContract({ account: relayer, address: pq, abi: PQ, functionName: "permit", args: used.args as any }),
 )} (and its nonce ${(used.args![1] as { nonce: bigint }).nonce} is already used)`);
+
+line(`\nA valid permit, signed now with @qorechain/qoresign by the public demo owner:`);
+const DEMO_OWNER = "0xab147494dfb095c1a086fcfefC1719e02dB1df20" as Address; // demo-owner.ts
+const demoKey = pqKeyFromSeed(shake256(new TextEncoder().encode("pq-permit:public-demo-owner:v1"), { dkLen: 32 }));
+const demoKs = (await read(KEY_STATUS, [{ type: "function", name: "pqcKeyStatus", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "bool" }, { type: "uint8" }, { type: "bytes" }, { type: "bool" }] }], "pqcKeyStatus", [DEMO_OWNER])) as [boolean, number, Hex, boolean];
+line(`  demo owner key on chain = public seed's key . ${ok(demoKs[0] && demoKs[3] && demoKs[2].toLowerCase() === toHex(demoKey.publicKey))}`);
+const demoPermit = { ...permit, nonce: (await read(pq, PQ, "nonces", [DEMO_OWNER])) as bigint };
+const demoMsg = messagePqSignBytes(NET.chainId, hexToBytes((await read(pq, PQ, "permitText", [DEMO_OWNER, demoPermit])) as Hex));
+const demoSig = pqSign(demoKey.secretKey, demoMsg);
+const simDemo = (signature: Hex, p = demoPermit) =>
+  publicClient.simulateContract({ account: relayer, address: pq, abi: PQ, functionName: "permit", args: [DEMO_OWNER, p, signature] });
+line(`  QoreSign pqVerify (off chain) ............... ${ok(pqVerify(demoKey.publicKey, demoMsg, demoSig))}`);
+const accepted = await revertName(simDemo(toHex(demoSig)));
+line(`  PQPermit.permit (eth_call) .................. ${accepted === "NO REVERT" ? "accepted ✓" : `${accepted} ✗ MISMATCH`}`);
+const flipped = demoSig.slice();
+flipped[100] ^= 1;
+line(`  same signature, one bit flipped -> ${await revertName(simDemo(toHex(flipped)))}`);
+line(`  same signature, amount changed  -> ${await revertName(simDemo(toHex(demoSig), { ...demoPermit, amount: demoPermit.amount + 1n }))}`);
 line(`\nEverything above is read from the chain at this block.`);
