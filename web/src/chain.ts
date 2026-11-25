@@ -47,7 +47,7 @@ export const demoKey = () => pqKeyFromSeed(hexToBytes(DEMO.seed));
 export const CHAIN_ID = QORECHAIN_TESTNET_CHAIN_ID; // "qorechain-diana"
 
 export const REPO = "https://github.com/JahanzaibMohsin9/pq-permit";
-export const VIDEO = "https://youtu.be/FMYFrOpnuGQ";
+export const VIDEO = "https://youtu.be/Z1yVuxe2RRA";
 
 export const erc20Abi = parseAbi([
   "function balanceOf(address) view returns (uint256)",

@@ -6,7 +6,7 @@
 
 > Build Before Q-Day · Post-Quantum dApp track
 >
-> **Demo video (2:47):** https://youtu.be/FMYFrOpnuGQ
+> **Demo video (2:50):** https://youtu.be/Z1yVuxe2RRA
 >
 > **Try it in the browser:** https://jahanzaibmohsin9.github.io/pq-permit/ (live proof on testnet, account check, and compose, **sign** and check a permit, no wallet needed: a public demo owner signs in your browser with `@qorechain/qoresign`)
 

@@ -403,7 +403,7 @@ export function App() {
         </p>
         <div className="links">
           <a href={REPO} target="_blank" rel="noreferrer">GitHub</a>
-          <a href={VIDEO} target="_blank" rel="noreferrer">Video (2:47)</a>
+          <a href={VIDEO} target="_blank" rel="noreferrer">Video (2:50)</a>
           <a href={`${REPO}/blob/main/docs/TESTNET_RUN.md`} target="_blank" rel="noreferrer">Testnet run</a>
           <a href={`${REPO}/blob/main/docs/AUDIT.md`} target="_blank" rel="noreferrer">QCAI audit</a>
           <span className="small">PQPermit {short(LIVE.pqPermit)} on qorechain-diana</span>
